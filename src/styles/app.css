@@ -1,0 +1,75 @@
+@import './reset.css';
+@import './tokens.primitives.css';
+@import './tokens.semantic.css';
+@import './typography.css';
+
+html {
+	background: var(--surface);
+	color: var(--text);
+	font-family: var(--font-body);
+	font-size: var(--fs-md);
+}
+
+body {
+	background: var(--surface);
+	color: var(--text);
+	transition:
+		background var(--dur) var(--ease),
+		color var(--dur) var(--ease);
+}
+
+/* scroll-lock applied to <body> while a drawer/modal is open */
+body.is-locked {
+	overflow: hidden;
+}
+
+h1,
+h2,
+h3 {
+	font-family: var(--font-serif);
+	line-height: 1.1;
+	color: var(--text);
+}
+
+main {
+	display: block;
+}
+
+.container {
+	width: 100%;
+	max-width: var(--container);
+	margin-inline: auto;
+	padding-inline: var(--space-4);
+}
+
+@media (min-width: 768px) {
+	.container {
+		padding-inline: var(--space-8);
+	}
+}
+
+/* hide scrollbars on horizontal scrollers */
+.scroll-x {
+	overflow-x: auto;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
+.scroll-x::-webkit-scrollbar {
+	display: none;
+}
+
+::selection {
+	background: var(--accent);
+	color: var(--accent-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}

@@ -1,0 +1,36 @@
+/* Layer 2 - Semantic, theme-aware tokens: the ONLY tokens components reference. */
+:root {
+	/* LIGHT / "white" */
+	--surface: var(--cream-50);
+	--surface-raised: var(--white);
+	--surface-inset: var(--gray-100);
+	--text: var(--navy-900);
+	--text-muted: var(--gray-500);
+	--border: var(--gray-300);
+	--header-bg: var(--navy-800); /* header is brand-dark in both themes */
+	--header-text: var(--white);
+	--accent: var(--red-500); /* CTAs/prices - constant */
+	--accent-text: var(--white);
+	--gold: var(--gold-400); /* italic emphasis/details - constant */
+	--on-dark: var(--cream-50); /* text on always-dark sections */
+	--dot-grid: var(--navy-600);
+	--whatsapp: var(--green-500);
+
+	/* category accents */
+	--cat-navy: var(--navy-600);
+	--cat-red: var(--red-500);
+	--cat-caramel: var(--caramel);
+	--cat-navy-soft: var(--navy-800);
+}
+
+[data-theme='dark'] {
+	/* DARK / "black" */
+	--surface: var(--black);
+	--surface-raised: var(--navy-900);
+	--surface-inset: #11182b;
+	--text: var(--cream-50);
+	--text-muted: var(--gray-300);
+	--border: #243155;
+	--header-bg: var(--navy-900);
+	--header-text: var(--white);
+}
