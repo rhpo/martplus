@@ -72,7 +72,8 @@
     position: sticky;
     top: 0;
     z-index: var(--z-header);
-    background: var(--header-bg);
+    background: color-mix(in srgb, var(--header-bg) 70%, transparent 5%);
+    backdrop-filter: blur(8px);
     color: var(--header-text);
   }
   .inner {

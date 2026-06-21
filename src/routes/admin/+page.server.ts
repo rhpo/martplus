@@ -3,9 +3,8 @@ import { listOrders } from '$lib/server/services/order.service';
 import type { OrderStatus } from '$lib/types';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = () => {
-	const orders = listOrders();
-	const products = listAllProducts();
+export const load: PageServerLoad = async () => {
+	const [orders, products] = await Promise.all([listOrders(), listAllProducts()]);
 
 	const statusCounts: Record<string, number> = {
 		pending: 0,

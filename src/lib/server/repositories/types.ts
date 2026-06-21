@@ -8,29 +8,38 @@ import type {
 	Product
 } from '$lib/types';
 
+// All repository methods are async — the Supabase JS client is promise-based.
+
 export interface ProductRepository {
-	listAll(): Product[];
-	listByCategory(slug: string): Product[];
-	search(q: string): Product[];
-	getBySlug(slug: string): Product | null;
-	getById(id: number): Product | null;
-	getManyByIds(ids: number[]): Product[];
-	listFlash(): Product[];
-	listBestsellers(limit?: number): Product[];
-	create(input: NewProduct): Product;
-	update(id: number, patch: Partial<NewProduct>): Product;
-	delete(id: number): void;
-	/** +adds / -deducts; throws if the result would be negative. */
-	adjustStock(id: number, delta: number): void;
+	listAll(): Promise<Product[]>;
+	listByCategory(slug: string): Promise<Product[]>;
+	search(q: string): Promise<Product[]>;
+	getBySlug(slug: string): Promise<Product | null>;
+	getById(id: number): Promise<Product | null>;
+	getManyByIds(ids: number[]): Promise<Product[]>;
+	listFlash(): Promise<Product[]>;
+	listBestsellers(limit?: number): Promise<Product[]>;
+	create(input: NewProduct): Promise<Product>;
+	update(id: number, patch: Partial<NewProduct>): Promise<Product>;
+	delete(id: number): Promise<void>;
+	/** +adds / -deducts; throws if the result would go negative (enforced in Postgres). */
+	adjustStock(id: number, delta: number): Promise<void>;
 }
 
 export interface CategoryRepository {
-	listAll(): Category[];
-	getBySlug(slug: string): Category | null;
+	listAll(): Promise<Category[]>;
+	getBySlug(slug: string): Promise<Category | null>;
 }
 
 export interface CouponRepository {
-	getActive(code: string): Coupon | null;
+	getActive(code: string): Promise<Coupon | null>;
+}
+
+export interface OrderItemInput {
+	product_id: number;
+	name_snapshot: string;
+	price_snapshot: number;
+	quantity: number;
 }
 
 export interface NewOrderInput {
@@ -49,32 +58,30 @@ export interface NewOrderInput {
 	discount: number;
 	delivery_fee: number;
 	total: number;
-	items: { product_id: number; name_snapshot: string; price_snapshot: number; quantity: number }[];
+	items: OrderItemInput[];
+}
+
+export interface AdminOrderUpdate {
+	customer_name?: string;
+	customer_phone?: string;
+	customer_address?: string;
+	customer_email?: string | null;
+	items: OrderItemInput[];
+	subtotal: number;
+	discount: number;
+	delivery_fee: number;
+	total: number;
 }
 
 export interface OrderRepository {
-	create(input: NewOrderInput): Order;
-	getByRef(ref: string): Order | null;
-	getById(id: number): Order | null;
-	listAll(): Order[];
-	setStatus(id: number, status: OrderStatus): void;
-	replaceItems(
-		orderId: number,
-		items: { product_id: number; name_snapshot: string; price_snapshot: number; quantity: number }[]
-	): void;
-	updateTotalsAndCustomer(
-		orderId: number,
-		patch: {
-			customer_name?: string;
-			customer_phone?: string;
-			customer_address?: string;
-			customer_email?: string | null;
-			subtotal: number;
-			discount: number;
-			delivery_fee: number;
-			total: number;
-		}
-	): void;
+	/** Atomic insert + stock decrement (Postgres RPC). */
+	create(input: NewOrderInput): Promise<Order>;
+	/** Atomic re-build of items + stock deltas + totals (Postgres RPC). */
+	adminUpdate(orderId: number, patch: AdminOrderUpdate): Promise<Order>;
+	getByRef(ref: string): Promise<Order | null>;
+	getById(id: number): Promise<Order | null>;
+	listAll(): Promise<Order[]>;
+	setStatus(id: number, status: OrderStatus): Promise<void>;
 }
 
 export interface Repositories {

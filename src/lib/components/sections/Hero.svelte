@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Product } from "$lib/types";
   import { ui } from "$lib/stores/ui.svelte";
+  import { formatPrice } from "$lib/utils/money";
   import Button from "$lib/components/ui/Button.svelte";
   import ArrowRight from "$lib/components/icons/ArrowRight.svelte";
 
@@ -53,9 +54,9 @@
         </div>
         <span class="marty-deal">Mart'y deal</span>
         <figcaption>
-          <span class="label">DUO SIGNATURE</span>
-          <span class="name">Comté Réserve &amp; Miel de Provence</span>
-          <span class="price"><s>2 490 DA</s></span>
+          <span class="label">SÉLECTION SIGNATURE</span>
+          <span class="name">{heroProduct?.name ?? 'Le meilleur du terroir'}</span>
+          {#if heroProduct}<span class="price">{formatPrice(heroProduct.price)}</span>{/if}
         </figcaption>
       </figure>
     </div>
@@ -222,8 +223,10 @@
           font-weight: 700;
           font-size: var(--fs-lg);
         }
-        .price s {
-          color: var(--gray-500);
+        .price {
+          font-family: var(--font-body);
+          font-weight: 700;
+          color: var(--accent);
         }
       }
       .marty-deal {

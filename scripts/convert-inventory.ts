@@ -38,7 +38,7 @@ function hash(s: string): number {
 }
 
 const BRANDS = [
-	'SAMYANG', 'BULDAK', 'MOGU MOGU', 'PRINGLES', 'ALESTO', 'NESTLÉ', 'KELLOGGS', 'CAJOLINE',
+	'PRINGLES', 'ALESTO', 'NESTLÉ', 'KELLOGGS', 'CAJOLINE',
 	'FINISH', 'PLIZ', 'SKIP', 'VANISH', 'SANEX', 'DOVE', 'PRÉSIDENT', 'PRIMVÈRE', 'ST HUBERT',
 	'LEERDAMMER', 'BABYBEL', 'PHILADELPHIA', 'NUTELLA', 'LU', 'MILKA', 'OREO', 'LINDT', 'TOBLERONE',
 	'CÔTE D\'OR', 'KINDER', 'KITKAT', 'MARS', 'SNICKERS', 'MALTESERS', 'RITTER', 'HARIBO', 'MENTOS',
@@ -123,7 +123,8 @@ for (const line of lines) {
 	const srcPrice = num(parts[1]);
 	if (srcPrice <= 0) continue;
 	const srcDisc = num(parts[2]);
-	const logo = (parts[3] ?? '').trim();
+	let logo = (parts[3] ?? '').trim();
+	if (logo.toUpperCase() === 'NULL') logo = '';
 	const desc = (parts[4] ?? '').trim();
 	const sku = (parts[6] ?? '').trim();
 	const qty = Math.max(0, Math.round(num(parts[8])));

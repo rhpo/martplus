@@ -25,7 +25,7 @@
 
 <div class="head">
   <h1>Produits <span class="count">({data.products.length})</span></h1>
-  <button class="primary" onclick={() => (showCreate = !showCreate)}>
+  <button class="add primary" onclick={() => (showCreate = !showCreate)}>
     {showCreate ? "Annuler" : "+ Nouveau produit"}
   </button>
 </div>
@@ -248,7 +248,7 @@
     }
   }
   .primary {
-    padding: var(--space-2) var(--space-5);
+    padding: var(--space-2) var(--space-4);
     border-radius: var(--radius-pill);
     background: var(--accent);
     color: var(--accent-text);

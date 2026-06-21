@@ -1,11 +1,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { dev } from '$app/environment';
+import { env } from '$env/dynamic/private';
 import type { Cookies } from '@sveltejs/kit';
 
 const COOKIE_NAME = 'mp_admin';
 const MAX_AGE = 60 * 60 * 12; // 12h
 
 function secret(): string {
-	return process.env.SESSION_SECRET ?? 'dev-insecure-secret-change-me';
+	return env.SESSION_SECRET ?? 'dev-insecure-secret-change-me';
 }
 
 function sign(value: string): string {
@@ -21,7 +23,7 @@ function safeEqual(a: string, b: string): boolean {
 
 /** Compare a submitted password to ADMIN_PASSWORD (constant-time). */
 export function verifyPassword(password: string): boolean {
-	const expected = process.env.ADMIN_PASSWORD ?? '';
+	const expected = env.ADMIN_PASSWORD ?? '';
 	if (!expected) return false;
 	return safeEqual(password, expected);
 }
@@ -47,7 +49,7 @@ export function setSession(cookies: Cookies): void {
 		path: '/',
 		httpOnly: true,
 		sameSite: 'lax',
-		secure: process.env.NODE_ENV === 'production',
+		secure: !dev,
 		maxAge: MAX_AGE
 	});
 }

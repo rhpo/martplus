@@ -32,28 +32,28 @@ export function flashDealsEndsAt(now = new Date()): Date {
 	return end;
 }
 
-/** Signature duos of French terroir products (Section 10). */
+/** Signature duos — real catalogue products (with working images), paired by Marty. */
 export const SIGNATURE_DUOS = [
 	{
 		id: 'plateau-apero',
-		title: 'Le Plateau Apéro du Terroir',
-		tagline: 'Comté Réserve + Chips au Fromage du Jura',
+		title: 'Le Plateau Apéro',
+		tagline: 'Leerdammer + Pringles Salt & Vinegar',
 		emoji: '🧀',
-		productSlugs: ['fromage-comte-reserve', 'chips-brets-jura']
+		productSlugs: ['leerdamer-500g', 'pringles-salt-vinegar-165g']
 	},
 	{
-		id: 'douceur-regions',
-		title: 'Douceur Sucrée de Nos Régions',
-		tagline: 'Chocolat Fleur de Sel + Caramels au Beurre Salé',
+		id: 'douceur-sucree',
+		title: 'Douceur Sucrée',
+		tagline: 'LU Pockitos + Têtes Brûlées',
 		emoji: '🍫',
-		productSlugs: ['choc-fleur-de-sel', 'bonbon-caramel-bsale']
+		productSlugs: ['lu-pockitos-chocolat-au-lait', 'tetes-brulees-300g']
 	},
 	{
-		id: 'heure-du-gouter',
-		title: "L'Heure du Goûter",
-		tagline: 'Sablés Pur Beurre + Miel de Provence',
-		emoji: '🍯',
-		productSlugs: ['biscuit-sable-breton', 'epic-miel-provence']
+		id: 'pause-cafe',
+		title: 'La Pause Café Gourmande',
+		tagline: 'Biscuits Gullón + Café Carte Noire',
+		emoji: '☕',
+		productSlugs: ['gullon-doradas-al-horno', 'carte-noir-t10-lungo-classic-n-6']
 	}
 ] as const;
 

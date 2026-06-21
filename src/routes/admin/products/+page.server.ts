@@ -11,11 +11,9 @@ import {
 } from '$lib/server/services/catalog.service';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = () => {
-	return {
-		products: listAllProducts(),
-		categories: listCategories()
-	};
+export const load: PageServerLoad = async () => {
+	const [products, categories] = await Promise.all([listAllProducts(), listCategories()]);
+	return { products, categories };
 };
 
 function slugify(s: string): string {
@@ -82,7 +80,7 @@ export const actions: Actions = {
 			return fail(400, { message: 'Nom et prix (> 0) sont requis.' });
 		}
 		try {
-			createProduct(input);
+			await createProduct(input);
 			return { success: true, message: `« ${input.name} » créé.` };
 		} catch (err) {
 			return fail(400, { message: (err as Error).message });
@@ -94,7 +92,7 @@ export const actions: Actions = {
 		const id = Number(form.get('id'));
 		const input = await buildInput(form, `produit-${id}`);
 		try {
-			updateProduct(id, input);
+			await updateProduct(id, input);
 			return { success: true, message: `« ${input.name} » mis à jour.` };
 		} catch (err) {
 			return fail(400, { message: (err as Error).message });
@@ -113,7 +111,7 @@ export const actions: Actions = {
 		const id = Number(form.get('id'));
 		const delta = Math.round(num(form.get('delta')));
 		try {
-			adjustStock(id, delta);
+			await adjustStock(id, delta);
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: (err as Error).message });

@@ -1,3 +1,4 @@
+import { env } from '$env/dynamic/private';
 import { Resend } from 'resend';
 import type { Mailer, MailMessage } from './types';
 
@@ -6,9 +7,9 @@ export class ResendMailer implements Mailer {
 	private from: string;
 
 	constructor() {
-		const key = process.env.RESEND_API_KEY;
+		const key = env.RESEND_API_KEY;
 		this.client = key ? new Resend(key) : null;
-		this.from = process.env.EMAIL_FROM ?? 'MART+ <onboarding@resend.dev>';
+		this.from = env.EMAIL_FROM ?? 'MART+ <onboarding@resend.dev>';
 	}
 
 	async send(message: MailMessage): Promise<void> {

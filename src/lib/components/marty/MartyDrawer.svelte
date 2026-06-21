@@ -1,9 +1,8 @@
 <script lang="ts">
   import type { ChatMessage, Product } from "$lib/types";
-  import { formatPrice } from "$lib/utils/money";
-  import { cart } from "$lib/stores/cart.svelte";
   import { ui } from "$lib/stores/ui.svelte";
   import Drawer from "$lib/components/ui/Drawer.svelte";
+  import ProductCard from "$lib/components/product/ProductCard.svelte";
   import ArrowRight from "$lib/components/icons/ArrowRight.svelte";
 
   const SUGGESTIONS = [
@@ -48,11 +47,6 @@
       loading = false;
     }
   }
-
-  function addSuggestion(p: Product) {
-    cart.add(p, 1);
-    ui.showToast(`${p.name} ajouté au panier`);
-  }
 </script>
 
 <Drawer
@@ -63,30 +57,14 @@
   <div class="chat">
     <div class="thread">
       {#each messages as msg, i (i)}
-        <div class="msg {msg.role}">
+        <div class="msg {msg.role}" class:wide={(msg.suggestions?.length ?? 0) > 0}>
           <p>{msg.text}</p>
           {#if msg.suggestions && msg.suggestions.length > 0}
-            <ul class="suggestions">
+            <div class="suggestions">
               {#each msg.suggestions as p (p.id)}
-                <li>
-                  {#if p.imageUrl}<img
-                      src={p.imageUrl}
-                      alt={p.name}
-                    />{:else}<div class="ph">🛒</div>{/if}
-                  <div class="meta">
-                    <span class="name">{p.name}</span>
-                    <span class="price">{formatPrice(p.price)}</span>
-                  </div>
-                  <button
-                    onclick={() => addSuggestion(p)}
-                    disabled={p.stock <= 0}
-                    aria-label="Ajouter {p.name}"
-                  >
-                    +
-                  </button>
-                </li>
+                <ProductCard product={p} />
               {/each}
-            </ul>
+            </div>
           {/if}
         </div>
       {/each}
@@ -145,6 +123,11 @@
       font-size: var(--fs-sm);
       line-height: 1.5;
 
+      &.wide {
+        max-width: 100%;
+        width: 100%;
+      }
+
       &.marty {
         align-self: flex-start;
         background: var(--surface-inset);
@@ -166,65 +149,8 @@
     .suggestions {
       display: flex;
       flex-direction: column;
-      gap: var(--space-2);
+      gap: var(--space-3);
       margin-top: var(--space-3);
-
-      li {
-        display: flex;
-        align-items: center;
-        gap: var(--space-2);
-        background: var(--surface-raised);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        padding: var(--space-2);
-
-        img,
-        .ph {
-          width: 40px;
-          height: 40px;
-          border-radius: var(--radius-sm);
-          background: var(--white);
-          object-fit: contain;
-        }
-        .ph {
-          display: grid;
-          place-items: center;
-          background: var(--surface-inset);
-        }
-        .meta {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-
-          .name {
-            font-weight: 600;
-            font-size: var(--fs-xs);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-          }
-          .price {
-            font-family: var(--font-mono);
-            font-size: var(--fs-xs);
-            color: var(--accent);
-          }
-        }
-        button {
-          width: 30px;
-          height: 30px;
-          border-radius: var(--radius-pill);
-          background: var(--navy-800);
-          color: var(--white);
-          font-weight: 700;
-          &:hover:not(:disabled) {
-            background: var(--accent);
-          }
-          &:disabled {
-            opacity: 0.4;
-          }
-        }
-      }
     }
   }
   .pills {

@@ -8,8 +8,8 @@ import {
 } from '$lib/server/services/order.service';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = () => {
-	return { orders: listOrders() };
+export const load: PageServerLoad = async () => {
+	return { orders: await listOrders() };
 };
 
 export const actions: Actions = {

@@ -1,3 +1,4 @@
+import { env } from '$env/dynamic/private';
 import type { Order } from '$lib/types';
 import { getMailer } from './factory';
 import { orderRecap } from './templates/order-recap';
@@ -5,7 +6,7 @@ import { statusUpdate } from './templates/status-update';
 
 function canSend(order: Order): boolean {
 	if (!order.customer_email) return false;
-	if (!process.env.RESEND_API_KEY) {
+	if (!env.RESEND_API_KEY) {
 		console.warn('[contact] RESEND_API_KEY missing - not sending email for', order.public_ref);
 		return false;
 	}

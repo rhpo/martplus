@@ -2,6 +2,7 @@
   import Hero from "$lib/components/sections/Hero.svelte";
   import CategoryBar from "$lib/components/sections/CategoryBar.svelte";
   import SignatureDuos from "$lib/components/sections/SignatureDuos.svelte";
+  import MartyFinder from "$lib/components/sections/MartyFinder.svelte";
   import FlashDeals from "$lib/components/sections/FlashDeals.svelte";
   import ProductGrid from "$lib/components/product/ProductGrid.svelte";
 
@@ -31,6 +32,8 @@
   <div class="container catbar-wrap">
     <CategoryBar categories={data.categories} />
   </div>
+
+  <MartyFinder />
 
   <SignatureDuos duos={data.duos} />
 

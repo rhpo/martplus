@@ -1,11 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { STORE_LOCATION } from '$lib/config';
-import type { Order, PaymentMethod } from '$lib/types';
+import type { Order, OrderStatus, PaymentMethod } from '$lib/types';
 import { computeDeliveryFee, haversineKm, isValidLatLng } from '$lib/utils/geo';
-import { transaction } from '../db/client';
 import { getRepositories } from '../repositories/factory';
+import type { OrderItemInput } from '../repositories/types';
 import { sendOrderRecap, sendStatusUpdate } from '../contact/contact.service';
-import type { OrderStatus } from '$lib/types';
 
 export interface PlaceOrderInput {
 	items: { productId: number; quantity: number }[];
@@ -20,7 +19,7 @@ export interface PlaceOrderInput {
 	coupon_code?: string | null;
 }
 
-export class OrderError extends Error { }
+export class OrderError extends Error {}
 
 const PAYMENT_METHODS: PaymentMethod[] = ['cod', 'cib', 'edahabia'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,11 +39,11 @@ function validateCustomer(input: {
 	}
 }
 
-function generateRef(): string {
+async function generateRef(): Promise<string> {
 	const repo = getRepositories().orders;
 	for (let i = 0; i < 8; i++) {
 		const ref = 'MP-' + randomBytes(3).toString('hex').toUpperCase();
-		if (!repo.getByRef(ref)) return ref;
+		if (!(await repo.getByRef(ref))) return ref;
 	}
 	return 'MP-' + Date.now().toString(16).toUpperCase().slice(-6);
 }
@@ -53,7 +52,11 @@ function round(n: number): number {
 	return Math.round(n);
 }
 
-/** Place an order - server-authoritative, single transaction. Returns the public ref. */
+function isStockError(err: unknown): boolean {
+	return err instanceof Error && /STOCK_INSUFFISANT/i.test(err.message);
+}
+
+/** Place an order — server-authoritative; the atomic write happens in a Postgres RPC. */
 export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
 	validateCustomer(input);
 
@@ -69,41 +72,56 @@ export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
 
 	const repos = getRepositories();
 
-	const order = transaction((): Order => {
-		// Re-fetch each product; reject missing or insufficient stock.
-		const lineItems = input.items.map((line) => {
-			const qty = Math.floor(Number(line.quantity));
-			if (!Number.isFinite(qty) || qty <= 0) throw new OrderError('Quantité invalide.');
-			const product = repos.products.getById(Number(line.productId));
-			if (!product) throw new OrderError(`Produit introuvable (#${line.productId}).`);
-			if (qty > product.stock) {
-				throw new OrderError(`Stock insuffisant pour « ${product.name} ».`);
-			}
-			return { product, qty };
-		});
+	// Re-fetch products from the DB; reject missing or insufficient stock (advisory —
+	// the RPC re-checks stock atomically to prevent oversell under concurrency).
+	const wanted = input.items.map((l) => ({
+		productId: Number(l.productId),
+		quantity: Math.floor(Number(l.quantity))
+	}));
+	if (wanted.some((l) => !Number.isFinite(l.quantity) || l.quantity <= 0)) {
+		throw new OrderError('Quantité invalide.');
+	}
 
-		const subtotal = lineItems.reduce((sum, li) => sum + li.product.price * li.qty, 0);
+	const products = await repos.products.getManyByIds(wanted.map((l) => l.productId));
+	const byId = new Map(products.map((p) => [p.id, p]));
 
-		// Coupon (server-side recompute from DB).
-		let discount = 0;
-		let appliedCode: string | null = null;
-		if (input.coupon_code) {
-			const coupon = repos.coupons.getActive(input.coupon_code);
-			if (coupon) {
-				discount = round((subtotal * coupon.percent) / 100);
-				appliedCode = coupon.code;
-			}
+	const lineItems: OrderItemInput[] = wanted.map((l) => {
+		const product = byId.get(l.productId);
+		if (!product) throw new OrderError(`Produit introuvable (#${l.productId}).`);
+		if (l.quantity > product.stock) {
+			throw new OrderError(`Stock insuffisant pour « ${product.name} ».`);
 		}
+		return {
+			product_id: product.id,
+			name_snapshot: product.name,
+			price_snapshot: product.price,
+			quantity: l.quantity
+		};
+	});
 
-		const distanceKm = haversineKm(STORE_LOCATION, {
-			lat: input.customer_lat,
-			lng: input.customer_lng
-		});
-		const deliveryFee = computeDeliveryFee(subtotal - discount, distanceKm);
-		const total = subtotal - discount + deliveryFee;
+	const subtotal = lineItems.reduce((sum, li) => sum + li.price_snapshot * li.quantity, 0);
 
-		const created = repos.orders.create({
-			public_ref: generateRef(),
+	let discount = 0;
+	let appliedCode: string | null = null;
+	if (input.coupon_code) {
+		const coupon = await repos.coupons.getActive(input.coupon_code);
+		if (coupon) {
+			discount = round((subtotal * coupon.percent) / 100);
+			appliedCode = coupon.code;
+		}
+	}
+
+	const distanceKm = haversineKm(STORE_LOCATION, {
+		lat: input.customer_lat,
+		lng: input.customer_lng
+	});
+	const deliveryFee = computeDeliveryFee(subtotal - discount, distanceKm);
+	const total = subtotal - discount + deliveryFee;
+
+	let order: Order;
+	try {
+		order = await repos.orders.create({
+			public_ref: await generateRef(),
 			customer_name: input.customer_name.trim(),
 			customer_phone: input.customer_phone.trim(),
 			customer_address: input.customer_address.trim(),
@@ -118,22 +136,14 @@ export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
 			discount,
 			delivery_fee: deliveryFee,
 			total,
-			items: lineItems.map((li) => ({
-				product_id: li.product.id,
-				name_snapshot: li.product.name,
-				price_snapshot: li.product.price,
-				quantity: li.qty
-			}))
+			items: lineItems
 		});
+	} catch (err) {
+		if (isStockError(err)) throw new OrderError('Stock insuffisant — un article vient de partir.');
+		throw err;
+	}
 
-		for (const li of lineItems) {
-			repos.products.adjustStock(li.product.id, -li.qty);
-		}
-
-		return created;
-	});
-
-	// After commit - email must never break order creation.
+	// After commit — email must never break order creation.
 	await sendOrderRecap(order, 'new');
 	return order;
 }
@@ -147,84 +157,74 @@ export interface AdminUpdateOrderInput {
 	items: { productId: number; quantity: number }[];
 }
 
-/** Admin edits an ongoing order - applies stock deltas, recomputes totals. */
+/** Admin edits an ongoing order — stock deltas + totals applied atomically in a Postgres RPC. */
 export async function adminUpdateOrder(input: AdminUpdateOrderInput): Promise<Order> {
 	const repos = getRepositories();
 
-	const order = transaction((): Order => {
-		const current = repos.orders.getById(input.orderId);
-		if (!current) throw new OrderError('Commande introuvable.');
+	const current = await repos.orders.getById(input.orderId);
+	if (!current) throw new OrderError('Commande introuvable.');
 
-		const oldQty = new Map<number, number>();
-		for (const it of current.items) {
-			oldQty.set(it.product_id, (oldQty.get(it.product_id) ?? 0) + it.quantity);
-		}
+	// Desired new item set (merge duplicate product ids, drop non-positive).
+	const newQty = new Map<number, number>();
+	for (const line of input.items) {
+		const pid = Number(line.productId);
+		const qty = Math.floor(Number(line.quantity));
+		if (!Number.isFinite(qty) || qty <= 0) continue;
+		newQty.set(pid, (newQty.get(pid) ?? 0) + qty);
+	}
+	if (newQty.size === 0) throw new OrderError('Une commande doit contenir au moins un article.');
 
-		// Desired new item set (merge duplicate product ids, drop non-positive).
-		const newQty = new Map<number, number>();
-		for (const line of input.items) {
-			const pid = Number(line.productId);
-			const qty = Math.floor(Number(line.quantity));
-			if (!Number.isFinite(qty) || qty <= 0) continue;
-			newQty.set(pid, (newQty.get(pid) ?? 0) + qty);
-		}
-		if (newQty.size === 0) throw new OrderError('Une commande doit contenir au moins un article.');
-
-		// Apply stock deltas (return stock when reduced, deduct when increased).
-		const productIds = new Set([...oldQty.keys(), ...newQty.keys()]);
-		for (const pid of productIds) {
-			const delta = (newQty.get(pid) ?? 0) - (oldQty.get(pid) ?? 0);
-			if (delta !== 0) repos.products.adjustStock(pid, -delta);
-		}
-
-		// Rebuild items: keep snapshots for existing, snapshot current price/name for new.
-		const existingSnapshot = new Map(current.items.map((it) => [it.product_id, it]));
-		const items = [...newQty.entries()].map(([pid, qty]) => {
-			const prev = existingSnapshot.get(pid);
-			if (prev) {
-				return {
-					product_id: pid,
-					name_snapshot: prev.name_snapshot,
-					price_snapshot: prev.price_snapshot,
-					quantity: qty
-				};
-			}
-			const product = repos.products.getById(pid);
+	// Keep snapshots for existing items; snapshot current price/name for newly added ones.
+	const existingSnapshot = new Map(current.items.map((it) => [it.product_id, it]));
+	const items: OrderItemInput[] = [];
+	for (const [pid, qty] of newQty) {
+		const prev = existingSnapshot.get(pid);
+		if (prev) {
+			items.push({
+				product_id: pid,
+				name_snapshot: prev.name_snapshot,
+				price_snapshot: prev.price_snapshot,
+				quantity: qty
+			});
+		} else {
+			const product = await repos.products.getById(pid);
 			if (!product) throw new OrderError(`Produit introuvable (#${pid}).`);
-			return {
+			items.push({
 				product_id: pid,
 				name_snapshot: product.name,
 				price_snapshot: product.price,
 				quantity: qty
-			};
-		});
-
-		repos.orders.replaceItems(input.orderId, items);
-
-		// Recompute totals with the stored coupon + distance.
-		const subtotal = items.reduce((sum, it) => sum + it.price_snapshot * it.quantity, 0);
-		let discount = 0;
-		if (current.coupon_code) {
-			const coupon = repos.coupons.getActive(current.coupon_code);
-			if (coupon) discount = round((subtotal * coupon.percent) / 100);
+			});
 		}
-		const deliveryFee = computeDeliveryFee(subtotal - discount, current.distance_km);
-		const total = subtotal - discount + deliveryFee;
+	}
 
-		repos.orders.updateTotalsAndCustomer(input.orderId, {
+	const subtotal = items.reduce((sum, it) => sum + it.price_snapshot * it.quantity, 0);
+	let discount = 0;
+	if (current.coupon_code) {
+		const coupon = await repos.coupons.getActive(current.coupon_code);
+		if (coupon) discount = round((subtotal * coupon.percent) / 100);
+	}
+	const deliveryFee = computeDeliveryFee(subtotal - discount, current.distance_km);
+	const total = subtotal - discount + deliveryFee;
+
+	let order: Order;
+	try {
+		order = await repos.orders.adminUpdate(input.orderId, {
 			customer_name: input.customer_name?.trim(),
 			customer_phone: input.customer_phone?.trim(),
 			customer_address: input.customer_address?.trim(),
 			customer_email:
 				input.customer_email === undefined ? undefined : input.customer_email?.trim() || null,
+			items,
 			subtotal,
 			discount,
 			delivery_fee: deliveryFee,
 			total
 		});
-
-		return repos.orders.getById(input.orderId)!;
-	});
+	} catch (err) {
+		if (isStockError(err)) throw new OrderError('Stock insuffisant pour la quantité demandée.');
+		throw err;
+	}
 
 	await sendOrderRecap(order, 'updated');
 	return order;
@@ -243,18 +243,18 @@ export async function setOrderStatus(orderId: number, status: OrderStatus): Prom
 	];
 	if (!valid.includes(status)) throw new OrderError('Statut invalide.');
 
-	repos.orders.setStatus(orderId, status);
-	const order = repos.orders.getById(orderId);
+	await repos.orders.setStatus(orderId, status);
+	const order = await repos.orders.getById(orderId);
 	if (!order) throw new OrderError('Commande introuvable.');
 
 	await sendStatusUpdate(order);
 	return order;
 }
 
-export function listOrders(): Order[] {
+export async function listOrders(): Promise<Order[]> {
 	return getRepositories().orders.listAll();
 }
 
-export function getOrderByRef(ref: string): Order | null {
+export async function getOrderByRef(ref: string): Promise<Order | null> {
 	return getRepositories().orders.getByRef(ref);
 }

@@ -8,31 +8,39 @@ import {
 } from '$lib/server/services/catalog.service';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = ({ url }) => {
+export const load: PageServerLoad = async ({ url }) => {
 	const q = url.searchParams.get('q')?.trim() ?? '';
 
 	if (q) {
 		return {
 			query: q,
-			searchResults: searchProducts(q),
+			searchResults: await searchProducts(q),
 			isSearch: true as const
 		};
 	}
 
-	const duos = SIGNATURE_DUOS.map((duo) => ({
-		id: duo.id,
-		title: duo.title,
-		tagline: duo.tagline,
-		emoji: duo.emoji,
-		products: getProductsBySlugs([...duo.productSlugs])
-	}));
+	const duos = await Promise.all(
+		SIGNATURE_DUOS.map(async (duo) => ({
+			id: duo.id,
+			title: duo.title,
+			tagline: duo.tagline,
+			emoji: duo.emoji,
+			products: await getProductsBySlugs([...duo.productSlugs])
+		}))
+	);
+
+	const [heroProduct, flashDeals, bestsellers] = await Promise.all([
+		getProduct('toffifee-white-x15'),
+		listFlashDeals(),
+		listBestsellers(12)
+	]);
 
 	return {
 		isSearch: false as const,
-		heroProduct: getProduct('fromage-comte-reserve'),
-		flashDeals: listFlashDeals(),
+		heroProduct,
+		flashDeals,
 		flashEndsAt: flashDealsEndsAt().toISOString(),
-		bestsellers: listBestsellers(12),
+		bestsellers,
 		duos
 	};
 };

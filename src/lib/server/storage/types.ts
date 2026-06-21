@@ -10,7 +10,7 @@ export interface Storage {
 	/**
 	 * Resolve a stored key to a renderable URL.
 	 * - absolute URLs (http/https) pass through unchanged,
-	 * - otherwise S3_PUBLIC_BASE_URL + '/' + key.
+	 * - otherwise the Supabase public URL for the object key.
 	 */
 	getUrl(key: string | null | undefined): string;
 }
